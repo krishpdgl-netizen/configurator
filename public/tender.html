@@ -171,6 +171,53 @@ function keyPointsHtml(t){
   }).join('');
 }
 
+
+/* Collect every advisory-level message into one disclosure. Blocking
+   issues are NOT folded in — those stay in the open where they belong. */
+function advisories(list){
+  const items = list.filter(Boolean);
+  if(!items.length) return '';
+  const n = items.length;
+  return `<details class="advisories">
+    <summary>
+      <span class="chev">&#9656;</span>
+      <span class="adv-count">${n}</span>
+      ${n===1?'point to check':'points to check'}
+      <span class="adv-hint">Click to review</span>
+    </summary>
+    <div class="adv-list">
+      ${items.map(a=>`<div class="adv-item ${a.kind==='ok'?'is-ok':''}">
+        <span class="badge">${esc(a.tag)}</span><div>${esc(a.text)}</div>
+      </div>`).join('')}
+    </div>
+  </details>`;
+}
+
+function reqTable(reqs, itemIndex){
+  if(!reqs || !reqs.length) return '<div class="empty">No technical requirements extracted for this item.</div>';
+  return `<table class="reqtable">
+    <thead><tr>
+      <th>Requirement</th><th>Page</th><th>Category</th><th>Constraints</th><th>Matched part</th>
+    </tr></thead>
+    <tbody>${reqs.map(r=>{
+      const ok = r.status === 'matched';
+      const constraints = (r.constraints||[]).map(c=>
+        `<span class="pill">${esc(c.attr)} ${esc(c.op)} ${esc(c.value)}${c.total?' total':''}</span>`).join('') || '<span class="muted">—</span>';
+      const picker = ok
+        ? `<select data-swap="${itemIndex}" data-cat="${r.category_id}">
+             ${(r.candidates||[]).map(c=>`<option value="${c.option_id}" ${c.option_id===r.option_id?'selected':''}>${esc(c.name)} &times; ${c.qty}</option>`).join('')}
+           </select>`
+        : `<span class="tag bad">No match</span>${r.reason?`<div class="r-why">${esc(r.reason)}</div>`:''}`;
+      return `<tr class="${ok?'':'is-nomatch'}">
+        <td class="r-spec">${esc(r.text||'')}</td>
+        <td class="r-page">${r.page?'p.'+r.page:'—'}</td>
+        <td class="mono">${esc(r.category_id||'')}</td>
+        <td>${constraints}</td>
+        <td>${picker}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
 function reqHtml(r, itemIndex, cats){
   const ok = r.status === 'matched';
   const constraints = (r.constraints||[]).map(c=>`<span class="pill">${esc(c.attr)} ${esc(c.op)} ${esc(c.value)}${c.total?' total':''}</span>`).join('');
@@ -200,11 +247,13 @@ function itemHtml(it, i, cats){
     <div class="panel-body">
       ${it.unsolvable ? '<div class="flag stop">These requirements cannot all be met at once with your current catalog — the parts below satisfy the specification individually but do not go together. That conflict is worth raising at the pre-bid meeting.</div>' : ''}
       ${stops.map(v=>`<div class="flag stop">${esc(v.message)}</div>`).join('')}
-      ${warns.map(v=>`<div class="flag warn">${esc(v.message)}</div>`).join('')}
-      ${it.gaps && it.gaps.length ? `<div class="flag warn">${it.gaps.length} requirement(s) could not be matched to a part. Quote them manually before you bid.</div>`:''}
-      ${it.unmapped && it.unmapped.length ? `<div class="flag warn">Outside the catalog: ${it.unmapped.map(esc).join(' · ')}</div>`:''}
-      ${it.assumed && it.assumed.length ? `<div class="flag ok">Not specified by the tender, added by us: ${it.assumed.map(a=>esc(a.name)).join(', ')}. Confirm these are what you intend to bid.</div>`:''}
-      <div style="margin-top:10px">${(it.requirements||[]).map(r=>reqHtml(r,i)).join('') || '<div class="empty">No technical requirements extracted for this item.</div>'}</div>
+      ${advisories([
+        ...warns.map(v=>({tag:'Rule', text:v.message})),
+        (it.gaps && it.gaps.length) ? {tag:'Gap', text:`${it.gaps.length} requirement(s) could not be matched to a part. Quote them manually before you bid.`} : null,
+        (it.unmapped && it.unmapped.length) ? {tag:'Off-catalog', text:`Outside the catalog: ${it.unmapped.join(' · ')}`} : null,
+        (it.assumed && it.assumed.length) ? {kind:'ok', tag:'Added by us', text:`Not specified by the tender: ${it.assumed.map(a=>a.name).join(', ')}. Confirm these are what you intend to bid.`} : null
+      ])}
+      ${reqTable(it.requirements, i)}
     </div>
     <div class="bar">
       <div class="stat"><div class="k">Stock</div><div class="v">${q.shortfalls.length?`<span style="color:var(--stop)">${q.shortfalls.length} short</span>`:'Covered'}</div></div>
@@ -243,8 +292,11 @@ function render(){
     <div class="panel-body">
       ${m.mode==='heuristic' ? '<div class="flag warn">No AI key is configured on the server, so this was read by pattern matching only. Treat every field as unverified.</div>':''}
       <div class="flag ok">Read ${m.pages_read?.total||'?'} pages, of which ${(m.pages_read?.technical||[]).length} were technical and ${(m.pages_read?.commercial||[]).length} commercial. Every value below carries the page it came from — verify before you bid.</div>
-      ${t.meta?.notes?`<div class="flag warn">${esc(t.meta.notes)}</div>`:''}
-      ${(m.risks||[]).map(r=>`<div class="flag ${r.level==='high'?'stop':'warn'}">${esc(r.text)}</div>`).join('')}
+      ${(m.risks||[]).filter(r=>r.level==='high').map(r=>`<div class="flag stop">${esc(r.text)}</div>`).join('')}
+      ${advisories([
+        t.meta?.notes ? {tag:'Note', text:t.meta.notes} : null,
+        ...(m.risks||[]).filter(r=>r.level!=='high').map(r=>({tag:'Clause', text:r.text}))
+      ])}
     </div>
   </div>
 
