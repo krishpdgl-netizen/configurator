@@ -315,5 +315,32 @@ el('btnSubmit').onclick = async ()=>{
 
 boot();
 </script>
+
+<!-- Staff entry point. Convenience only: /admin.html is reachable whether
+     or not this link exists, so the token is what actually protects it. -->
+<footer class="siteFoot">
+  <span class="muted small" id="footCo"></span>
+  <a href="/admin.html" class="staffLink" title="Internal use">Staff</a>
+</footer>
+<style>
+  .siteFoot{
+    max-width:1100px; margin:48px auto 28px; padding:14px 20px 0;
+    border-top:1px solid var(--line, #e6e6e6);
+    display:flex; justify-content:space-between; align-items:center; gap:16px;
+  }
+  .staffLink{
+    color:var(--ink-3, #8a8a8a); font-size:12.5px; text-decoration:none;
+    letter-spacing:.02em; opacity:.65; transition:opacity .15s, color .15s;
+  }
+  .staffLink:hover{ opacity:1; color:var(--ink-1, #222); text-decoration:underline; }
+</style>
+<script>
+  /* Footer shows whatever company name is configured in Admin -> Settings */
+  fetch('/api/catalog').then(r=>r.json()).then(d=>{
+    const y = new Date().getFullYear();
+    document.getElementById('footCo').textContent =
+      (d?.settings?.company || '') + ' · ' + y;
+  }).catch(()=>{});
+</script>
 </body>
 </html>
