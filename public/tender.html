@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tender reader</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+.drop{border:2px dashed var(--rule);border-radius:6px;padding:34px;text-align:center;background:var(--surface);cursor:pointer;transition:border-color .13s,background .13s}
+.drop.over{border-color:var(--signal);background:var(--signal-tint)}
+.drop h3{font-size:16px;margin-bottom:5px}
+.kp{display:grid;grid-template-columns:220px 1fr;gap:0;border-bottom:1px solid var(--rule-soft)}
+.kp:last-child{border-bottom:0}
+.kp .k{padding:10px 14px;background:#FAFBFC;font-size:13px;font-weight:500;border-right:1px solid var(--rule-soft)}
+.kp .v{padding:10px 14px;font-size:13.5px}
+.kp .ev{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);margin-top:3px}
+.kp .missing{color:var(--alert);font-style:italic}
+.grp{font-family:var(--f-mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);padding:11px 14px 5px;background:var(--surface);border-bottom:1px solid var(--rule-soft)}
+.item{border:1px solid var(--rule);border-radius:6px;background:var(--surface);margin-bottom:14px;overflow:hidden}
+.item-head{padding:14px 16px;border-bottom:1px solid var(--rule-soft);display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.item-head h3{font-size:15.5px}
+.reqrow{border-bottom:1px dashed var(--rule-soft);padding:9px 0;display:grid;grid-template-columns:1fr 300px;gap:12px;align-items:start}
+.reqrow:last-child{border-bottom:0}
+.reqtext{font-size:13px}
+.reqmeta{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);margin-top:2px}
+.pill{font-family:var(--f-mono);font-size:10px;padding:1px 5px;border-radius:3px;background:var(--paper);color:var(--ink-2);margin-right:4px}
+.bar{display:flex;gap:14px;flex-wrap:wrap;padding:12px 16px;background:#FAFBFC;border-top:1px solid var(--rule-soft);align-items:center}
+.stat .k{font-family:var(--f-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3)}
+.stat .v{font-family:var(--f-mono);font-size:15px;font-weight:600}
+.gate{max-width:380px;margin:14vh auto;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:26px;box-shadow:var(--shadow)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);border-top-color:var(--ink);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate" style="display:none">
+  <h2 style="font-size:18px;margin-bottom:6px">Admin access</h2>
+  <p class="muted small" style="margin:0 0 16px">Enter the admin token set on the server.</p>
+  <div class="field"><input id="tokIn" type="password" placeholder="Admin token"></div>
+  <div class="flag stop" id="gateErr" style="display:none">That token was not accepted.</div>
+  <button class="btn btn-primary" id="tokGo" style="width:100%">Open tender reader</button>
+</div>
+
+<div id="app" style="display:none">
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand"><strong>Tender reader</strong><span>Read · match · quote</span></div>
+    <nav class="navlinks"><a href="/">Configurator</a><a href="/admin.html">Admin</a><a href="/tender.html" class="on">Tenders</a></nav>
+    <div class="spacer"></div>
+    <span class="small muted" id="aiState"></span>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notice"></div>
+
+  <div class="row row-2" style="gap:16px;margin-bottom:18px">
+    <div>
+      <div class="drop" id="drop">
+        <h3>Drop a tender here</h3>
+        <p class="muted small" style="margin:0">PDF, Word or Excel. Scanned documents need OCR first.</p>
+        <input type="file" id="fileIn" accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt" style="display:none">
+      </div>
+    </div>
+    <div class="panel" style="margin:0">
+      <div class="panel-head"><h2>Recent tenders</h2><div class="spacer"></div><button class="btn btn-ghost btn-sm" id="btnRefresh">Refresh</button></div>
+      <div class="panel-body" style="padding:0;max-height:220px;overflow:auto"><table id="tblTenders"></table></div>
+    </div>
+  </div>
+
+  <div id="result"></div>
+</main>
+</div>
+
+<script>
+const el = id => document.getElementById(id);
+let TOKEN = localStorage.getItem('admtok') || '';
+let CURRENT = null;
+
+const api = async (url, opts={}) => {
+  const res = await fetch(url, {...opts, headers:{'x-admin-token':TOKEN, ...(opts.body && typeof opts.body==='string'?{'content-type':'application/json'}:{}), ...(opts.headers||{})}});
+  if(res.status===401){ localStorage.removeItem('admtok'); location.reload(); }
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error||'Request failed');
+  return data;
+};
+const esc = s => String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+const inr = n => '₹' + Math.round(Number(n)||0).toLocaleString('en-IN');
+function notice(msg,kind='ok'){ el('notice').innerHTML=`<div class="flag ${kind}">${msg}</div>`; }
+
+el('tokGo').onclick = async ()=>{
+  TOKEN = el('tokIn').value.trim();
+  try{ await listTenders(); localStorage.setItem('admtok',TOKEN); el('gate').style.display='none'; el('app').style.display='block'; }
+  catch{ el('gateErr').style.display='block'; }
+};
+el('tokIn').addEventListener('keydown',e=>{ if(e.key==='Enter') el('tokGo').click(); });
+
+/* ---------- upload ---------- */
+const drop = el('drop');
+drop.onclick = ()=> el('fileIn').click();
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop', e=>{ if(e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
+el('fileIn').onchange = ()=>{ if(el('fileIn').files[0]) upload(el('fileIn').files[0]); };
+
+async function upload(file){
+  notice(`<span class="spin"></span> Reading ${esc(file.name)}…`);
+  const fd = new FormData(); fd.append('file', file);
+  try{
+    const r = await fetch('/api/tender/upload',{method:'POST',headers:{'x-admin-token':TOKEN},body:fd});
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error);
+    if(data.needsOcr){
+      notice(`<strong>${esc(file.name)}</strong> looks like a scan — there is almost no selectable text in it. Run it through OCR first (<span class="mono">ocrmypdf in.pdf out.pdf</span>) and upload again.`,'warn');
+      listTenders(); return;
+    }
+    notice(`<span class="spin"></span> ${data.pages||''} pages read. Extracting key points and specifications — this takes 20 to 60 seconds.`);
+    await analyse(data.id);
+  }catch(e){ notice(e.message,'stop'); }
+  el('fileIn').value='';
+}
+
+async function analyse(id){
+  try{
+    await api(`/api/tender/${id}/analyse`,{method:'POST',body:JSON.stringify({useAi:true})});
+    await open(id);
+    notice('Extraction complete. Check the flagged items before quoting.','ok');
+  }catch(e){ notice('Extraction failed: '+e.message,'stop'); listTenders(); }
+}
+
+async function listTenders(){
+  const rows = await api('/api/tenders');
+  el('aiState').textContent = '';
+  el('tblTenders').innerHTML = rows.length ? `<thead><tr><th>Ref</th><th>File</th><th>Pages</th><th>Status</th><th></th></tr></thead><tbody>` +
+    rows.map(t=>`<tr><td class="mono small">${t.ref||t.id}</td><td class="small">${esc(t.filename)}</td>
+      <td class="num">${t.pages||'—'}</td>
+      <td>${t.status==='ready'?'<span class="tag ok">Ready</span>':t.status==='failed'?`<span class="tag bad">Failed</span>`:'<span class="tag mute">'+t.status+'</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" data-open="${t.id}">Open</button>
+      ${t.status!=='ready'?`<button class="btn btn-ghost btn-sm" data-run="${t.id}">Read it</button>`:''}</td></tr>`).join('')+'</tbody>'
+    : '<tbody><tr><td class="empty">Nothing uploaded yet.</td></tr></tbody>';
+}
+el('btnRefresh').onclick = listTenders;
+
+document.addEventListener('click', e=>{
+  if(e.target.dataset.open) open(e.target.dataset.open);
+  if(e.target.dataset.run){ notice('<span class="spin"></span> Reading…'); analyse(e.target.dataset.run); }
+});
+
+async function open(id){
+  CURRENT = await api('/api/tender/'+id);
+  render();
+  listTenders();
+  window.scrollTo({top: el('result').offsetTop - 80, behavior:'smooth'});
+}
+
+/* ---------- rendering ---------- */
+function keyPointsHtml(t){
+  const groups = [...new Set(t.fields.map(f=>f.group_name))];
+  return groups.map(g=>{
+    const rows = t.fields.filter(f=>f.group_name===g).map(f=>{
+      const v = t.meta[f.key];
+      const value = v && v.value !== null && v.value !== undefined && v.value !== ''
+        ? (Array.isArray(v.value) ? '<ul style="margin:0;padding-left:18px">'+v.value.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>'
+           : (f.type==='money' ? inr(v.value) : esc(v.value)))
+        : '<span class="missing">Not stated in the pages read</span>';
+      const ev = v && v.evidence ? `<div class="ev">p.${v.page ?? '?'} · ${esc(v.evidence)}</div>` : '';
+      return `<div class="kp"><div class="k">${esc(f.label)}</div><div class="v">${value}${ev}</div></div>`;
+    }).join('');
+    return `<div class="grp">${esc(g)}</div>${rows}`;
+  }).join('');
+}
+
+function reqHtml(r, itemIndex, cats){
+  const ok = r.status === 'matched';
+  const constraints = (r.constraints||[]).map(c=>`<span class="pill">${esc(c.attr)} ${esc(c.op)} ${esc(c.value)}${c.total?' total':''}</span>`).join('');
+  const picker = ok ? `
+    <select data-swap="${itemIndex}" data-cat="${r.category_id}">
+      ${(r.candidates||[]).map(c=>`<option value="${c.option_id}" ${c.option_id===r.option_id?'selected':''}>${esc(c.name)} × ${c.qty}</option>`).join('')}
+    </select>` : `<span class="tag bad">No match</span>`;
+  return `<div class="reqrow">
+    <div><div class="reqtext">${esc(r.text||'')}</div>
+      <div class="reqmeta">${r.page?`p.${r.page} · `:''}${esc(r.category_id)} ${constraints}</div>
+      ${!ok && r.reason ? `<div class="reqmeta" style="color:var(--alert)">${esc(r.reason)}</div>`:''}</div>
+    <div>${picker}</div></div>`;
+}
+
+function itemHtml(it, i, cats){
+  const q = it.quote || {lines:[],subtotal:0,shortfalls:[]};
+  const stops = (it.violations||[]).filter(v=>v.severity==='block');
+  const warns = (it.violations||[]).filter(v=>v.severity==='warn');
+  return `<div class="item">
+    <div class="item-head">
+      <div><h3>${esc(it.name)}</h3>
+        <div class="muted small">${it.quantity} unit${it.quantity>1?'s':''}${it.page?` · specified on p.${it.page}`:''}${it.overridden?' · manually adjusted':''}</div></div>
+      <div class="spacer"></div>
+      <div class="stat"><div class="k">Per unit</div><div class="v">${inr(q.subtotal/(it.quantity||1))}</div></div>
+      <div class="stat"><div class="k">Line total</div><div class="v">${inr(q.subtotal)}</div></div>
+    </div>
+    <div class="panel-body">
+      ${it.unsolvable ? '<div class="flag stop">These requirements cannot all be met at once with your current catalog — the parts below satisfy the specification individually but do not go together. That conflict is worth raising at the pre-bid meeting.</div>' : ''}
+      ${stops.map(v=>`<div class="flag stop">${esc(v.message)}</div>`).join('')}
+      ${warns.map(v=>`<div class="flag warn">${esc(v.message)}</div>`).join('')}
+      ${it.gaps && it.gaps.length ? `<div class="flag warn">${it.gaps.length} requirement(s) could not be matched to a part. Quote them manually before you bid.</div>`:''}
+      ${it.unmapped && it.unmapped.length ? `<div class="flag warn">Outside the catalog: ${it.unmapped.map(esc).join(' · ')}</div>`:''}
+      ${it.assumed && it.assumed.length ? `<div class="flag ok">Not specified by the tender, added by us: ${it.assumed.map(a=>esc(a.name)).join(', ')}. Confirm these are what you intend to bid.</div>`:''}
+      <div style="margin-top:10px">${(it.requirements||[]).map(r=>reqHtml(r,i)).join('') || '<div class="empty">No technical requirements extracted for this item.</div>'}</div>
+    </div>
+    <div class="bar">
+      <div class="stat"><div class="k">Stock</div><div class="v">${q.shortfalls.length?`<span style="color:var(--stop)">${q.shortfalls.length} short</span>`:'Covered'}</div></div>
+      <div class="stat"><div class="k">Longest lead</div><div class="v">${q.lead_days||0} d</div></div>
+      <div class="stat"><div class="k">Margin</div><div class="v">${q.gross_margin_pct}%</div></div>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost btn-sm" data-bom="${i}">Bill of materials</button>
+    </div>
+    <div id="bom-${i}" style="display:none;padding:0 16px 16px">
+      <table><thead><tr><th>Component</th><th>SKU</th><th>Qty/unit</th><th>Total qty</th><th>Rate</th><th>Amount</th><th>In stock</th><th>Short</th></tr></thead><tbody>
+      ${q.lines.map(l=>`<tr><td>${esc(l.name)}</td><td class="mono">${l.option_id}</td>
+        <td class="num">${l.qty_per_unit}</td><td class="num">${l.qty_total}</td>
+        <td class="num">${inr(l.unit_price)}</td><td class="num">${inr(l.amount)}</td>
+        <td class="num">${l.stock_qty}</td>
+        <td class="num">${l.short_by?`<span class="tag bad">${l.short_by}</span>`:'—'}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+  </div>`;
+}
+
+function render(){
+  const t = CURRENT;
+  const m = t.match || {};
+  const totals = m.totals || {subtotal:0,tax:0,total:0};
+  const conf = t.meta?.confidence || 'unknown';
+
+  el('result').innerHTML = `
+  <div class="panel">
+    <div class="panel-head">
+      <h2>${esc(t.filename)}</h2>
+      <span class="sub mono">${esc(t.ref)}</span>
+      <div class="spacer"></div>
+      <span class="tag ${conf==='high'?'ok':conf==='low'?'bad':'warn'}">Extraction confidence: ${esc(conf)}</span>
+      <a class="btn btn-ghost btn-sm" href="/api/tender/${t.id}/quote.xlsx?token=${encodeURIComponent(TOKEN)}">Download estimate</a>
+    </div>
+    <div class="panel-body">
+      ${m.mode==='heuristic' ? '<div class="flag warn">No AI key is configured on the server, so this was read by pattern matching only. Treat every field as unverified.</div>':''}
+      <div class="flag ok">Read ${m.pages_read?.total||'?'} pages, of which ${(m.pages_read?.technical||[]).length} were technical and ${(m.pages_read?.commercial||[]).length} commercial. Every value below carries the page it came from — verify before you bid.</div>
+      ${t.meta?.notes?`<div class="flag warn">${esc(t.meta.notes)}</div>`:''}
+      ${(m.risks||[]).map(r=>`<div class="flag ${r.level==='high'?'stop':'warn'}">${esc(r.text)}</div>`).join('')}
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Key points</h2><span class="sub">As written in the document</span></div>
+    <div class="panel-body" style="padding:0">${keyPointsHtml(t)}</div>
+  </div>
+
+  <div class="panel-head" style="border:0;padding-left:0"><h2>Configuration &amp; rough estimate</h2>
+    <span class="sub">Matched against live stock and prices</span></div>
+  ${(t.items||[]).map((it,i)=>itemHtml(it,i)).join('') || '<div class="panel"><div class="empty">No line items were extracted. Check that the specification section is in this file.</div></div>'}
+
+  <div class="panel">
+    <div class="panel-head"><h2>Rough order value</h2><div class="spacer"></div>
+      <span class="tag warn">Budgetary — not a formal quotation</span></div>
+    <div class="panel-body">
+      <table style="max-width:420px">
+        <tr><td>Subtotal</td><td class="num">${inr(totals.subtotal)}</td></tr>
+        <tr><td>Tax</td><td class="num">${inr(totals.tax)}</td></tr>
+        <tr><td><strong>Total</strong></td><td class="num"><strong style="font-size:17px">${inr(totals.total)}</strong></td></tr>
+        <tr><td class="muted small">Your cost</td><td class="num muted small">${inr(totals.cost)}</td></tr>
+        <tr><td class="muted small">Gross margin</td><td class="num muted small">${totals.subtotal?Math.round((totals.subtotal-totals.cost)/totals.subtotal*1000)/10:0}%</td></tr>
+      </table>
+    </div>
+  </div>`;
+}
+
+/* swap a matched part, re-price the whole tender */
+document.addEventListener('change', async e=>{
+  const s = e.target;
+  if(s.dataset.swap === undefined) return;
+  try{
+    await api(`/api/tender/${CURRENT.id}/override`,{method:'POST',body:JSON.stringify({
+      itemIndex: Number(s.dataset.swap), category_id: s.dataset.cat, option_id: s.value, qty: 1
+    })});
+    await open(CURRENT.id);
+    notice('Part swapped and the estimate re-priced.','ok');
+  }catch(err){ notice(err.message,'stop'); }
+});
+document.addEventListener('click', e=>{
+  if(e.target.dataset.bom !== undefined){
+    const n = el('bom-'+e.target.dataset.bom);
+    n.style.display = n.style.display==='none' ? 'block' : 'none';
+  }
+});
+
+(async ()=>{
+  if(TOKEN){ try{ await listTenders(); el('app').style.display='block'; return; }catch{} }
+  el('gate').style.display='block';
+})();
+</script>
+</body>
+</html>

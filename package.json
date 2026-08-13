@@ -1,0 +1,21 @@
+{
+  "name": "configurator-tender-reader",
+  "version": "2.0.0",
+  "description": "IT hardware configurator with compatibility rules and an automated tender reader",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --env-file=.env --watch server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "mammoth": "^1.12.1",
+    "multer": "^2.2.0",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.13.1",
+    "xlsx": "^0.18.5"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

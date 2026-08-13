@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — Catalog &amp; Rules</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule);margin-bottom:18px;flex-wrap:wrap}
+.tab{background:transparent;border:0;border-bottom:2px solid transparent;padding:10px 14px;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink-2)}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.pane{display:none} .pane.on{display:block}
+.sentence{background:var(--paper);border-radius:5px;padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:end}
+.sentence .lead{grid-column:1/-1;font-family:var(--f-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3)}
+.attrgrid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:7px}
+.gate{max-width:380px;margin:14vh auto;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:26px;box-shadow:var(--shadow)}
+.preview{font-family:var(--f-mono);font-size:12px;background:var(--ink);color:#D6E2E0;padding:10px 12px;border-radius:4px;line-height:1.6;word-break:break-word}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate" style="display:none">
+  <h2 style="font-size:18px;margin-bottom:6px">Admin access</h2>
+  <p class="muted small" style="margin:0 0 16px">Enter the admin token set on the server.</p>
+  <div class="field"><input id="tokIn" type="password" placeholder="Admin token"></div>
+  <div class="flag stop" id="gateErr" style="display:none">That token was not accepted.</div>
+  <button class="btn btn-primary" id="tokGo" style="width:100%">Open dashboard</button>
+</div>
+
+<div id="app" style="display:none">
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand"><strong id="brandName">Admin</strong><span>Catalog control</span></div>
+    <nav class="navlinks">
+      <a href="/">Configurator</a><a href="/admin.html" class="on">Admin</a><a href="/tender.html">Tenders</a>
+    </nav>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost btn-sm" id="btnExport">Download Excel</button>
+    <button class="btn btn-ghost btn-sm" id="btnImport">Upload Excel</button>
+    <input type="file" id="fileIn" accept=".xlsx,.xls" style="display:none">
+    <button class="btn btn-ghost btn-sm" id="btnLogout">Sign out</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notice"></div>
+  <div class="tabs">
+    <button class="tab on" data-pane="parts">Parts &amp; prices</button>
+    <button class="tab" data-pane="cats">Parameters</button>
+    <button class="tab" data-pane="rules">Compatibility rules</button>
+    <button class="tab" data-pane="fields">Tender key points</button>
+    <button class="tab" data-pane="leads">Enquiries</button>
+    <button class="tab" data-pane="settings">Settings</button>
+  </div>
+
+  <!-- PARTS -->
+  <section class="pane on" id="pane-parts">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Parts &amp; prices</h2>
+        <span class="sub" id="partCount"></span>
+        <div class="spacer"></div>
+        <select id="filterCat" style="width:auto"></select>
+        <button class="btn btn-primary btn-sm" id="btnNewPart">Add a part</button>
+      </div>
+      <div class="panel-body" style="padding:0;overflow:auto">
+        <table id="tblParts"></table>
+      </div>
+    </div>
+    <p class="hint">Cost is what you pay. The customer sees cost plus the margin set on the parameter, so you only ever maintain one number here.</p>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section class="pane" id="pane-cats">
+    <div class="panel">
+      <div class="panel-head"><h2>Parameters</h2><span class="sub">The groups a customer picks from, in order</span>
+        <div class="spacer"></div><button class="btn btn-primary btn-sm" id="btnNewCat">Add a parameter</button></div>
+      <div class="panel-body" style="padding:0;overflow:auto"><table id="tblCats"></table></div>
+    </div>
+  </section>
+
+  <!-- RULES -->
+  <section class="pane" id="pane-rules">
+    <div class="panel">
+      <div class="panel-head"><h2>Compatibility rules</h2><span class="sub">Each rule is a sentence that must stay true</span>
+        <div class="spacer"></div><button class="btn btn-primary btn-sm" id="btnNewRule">Add a rule</button></div>
+      <div class="panel-body" style="padding:0;overflow:auto"><table id="tblRules"></table></div>
+    </div>
+    <p class="hint">Blocking rules stop the customer from choosing the part and stop a tender build from being quoted. Warnings are advisory — the build still goes through.</p>
+  </section>
+
+  <!-- EXTRACTION FIELDS -->
+  <section class="pane" id="pane-fields">
+    <div class="panel">
+      <div class="panel-head"><h2>Tender key points</h2><span class="sub">What the reader pulls out of every document</span>
+        <div class="spacer"></div><button class="btn btn-primary btn-sm" id="btnNewField">Add a key point</button></div>
+      <div class="panel-body" style="padding:0;overflow:auto"><table id="tblFields"></table></div>
+    </div>
+    <p class="hint">Add a row here and the tender reader starts extracting it on the next document — no code change. Write the hint the way you would brief a new bid executive.</p>
+  </section>
+
+  <!-- LEADS -->
+  <section class="pane" id="pane-leads">
+    <div class="panel">
+      <div class="panel-head"><h2>Enquiries</h2><span class="sub" id="leadCount"></span></div>
+      <div class="panel-body" style="padding:0;overflow:auto"><table id="tblLeads"></table></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="pane" id="pane-settings">
+    <div class="panel">
+      <div class="panel-head"><h2>Settings</h2></div>
+      <div class="panel-body">
+        <div class="row row-3">
+          <div class="field"><label class="f">Company name</label><input id="s_company"></div>
+          <div class="field"><label class="f">Currency symbol</label><input id="s_currency"></div>
+          <div class="field"><label class="f">Number locale</label><input id="s_locale"></div>
+          <div class="field"><label class="f">Tax label</label><input id="s_tax_label"></div>
+          <div class="field"><label class="f">Tax rate (0.18 = 18%)</label><input id="s_tax_rate"></div>
+          <div class="field"><label class="f">Default margin %</label><input id="s_default_margin_pct"></div>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--rule-soft);margin:6px 0 16px">
+        <div class="row row-2">
+          <div class="field"><label class="f">Claude model for tender reading</label><input id="s_anthropic_model">
+            <div class="hint">The API key itself lives in the server environment, never in the database.</div></div>
+          <div class="field"><label class="f">Google Form response URL</label><input id="s_google_form_action" placeholder="https://docs.google.com/forms/d/e/…/formResponse">
+            <div class="hint">Optional. Every enquiry is stored here regardless; this only mirrors it into a form for whoever prefers Sheets.</div></div>
+        </div>
+        <div class="field"><label class="f">Google Form entry ids (JSON)</label><textarea id="s_google_form_fields" class="mono"></textarea></div>
+        <button class="btn btn-primary" id="btnSaveSettings">Save settings</button>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+
+<!-- generic editor dialog -->
+<div class="scrim" id="scrim"><div class="dialog">
+  <div class="dialog-head"><h2 id="dlgTitle">Edit</h2><p id="dlgSub"></p></div>
+  <div class="dialog-body" id="dlgBody"></div>
+  <div class="dialog-foot">
+    <button class="btn btn-ghost" id="dlgCancel">Cancel</button>
+    <button class="btn btn-primary" id="dlgSave">Save</button>
+  </div>
+</div></div>
+
+<script>
+const el = id => document.getElementById(id);
+let TOKEN = localStorage.getItem('admtok') || '';
+let DATA = null, saveHandler = null;
+
+const api = async (url, opts={}) => {
+  const res = await fetch(url, {...opts, headers:{'x-admin-token':TOKEN, ...(opts.body?{'content-type':'application/json'}:{}) , ...(opts.headers||{})}});
+  if(res.status===401) { logout(); throw new Error('Not authorised'); }
+  const ct = res.headers.get('content-type')||'';
+  const data = ct.includes('json') ? await res.json() : await res.text();
+  if(!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+};
+function logout(){ localStorage.removeItem('admtok'); TOKEN=''; el('app').style.display='none'; el('gate').style.display='block'; }
+function notice(msg, kind='ok'){ el('notice').innerHTML = `<div class="flag ${kind}">${msg}</div>`; setTimeout(()=>el('notice').innerHTML='',6000); }
+
+/* ---------- gate ---------- */
+el('tokGo').onclick = async ()=>{
+  TOKEN = el('tokIn').value.trim();
+  try { await load(); localStorage.setItem('admtok', TOKEN); el('gate').style.display='none'; el('app').style.display='block'; }
+  catch { el('gateErr').style.display='block'; }
+};
+el('tokIn').addEventListener('keydown', e=>{ if(e.key==='Enter') el('tokGo').click(); });
+el('btnLogout').onclick = logout;
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on', p.id==='pane-'+t.dataset.pane));
+});
+
+/* ---------- load & render ---------- */
+async function load(){
+  DATA = await api('/api/admin/bootstrap');
+  el('brandName').textContent = (DATA.settings.company||'Admin');
+  renderCats(); renderParts(); renderRules(); renderFields(); renderSettings();
+  api('/api/admin/leads').then(renderLeads).catch(()=>{});
+}
+
+const catLabel = id => (DATA.categories.find(c=>c.id===id)||{}).label || id;
+const esc = s => String(s??'').replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+function renderCats(){
+  el('tblCats').innerHTML = `<thead><tr><th>Order</th><th>Parameter</th><th>Id</th><th>Required</th><th>Max qty</th><th>Multi-pick</th><th>Margin %</th><th></th></tr></thead><tbody>` +
+    DATA.categories.map(c=>`<tr>
+      <td class="mono">${c.sort}</td>
+      <td><strong>${esc(c.label)}</strong><div class="muted small">${esc(c.note)}</div></td>
+      <td class="mono">${c.id}</td>
+      <td>${c.required?'<span class="tag ok">Yes</span>':'<span class="tag mute">No</span>'}</td>
+      <td class="num">${c.max_qty}</td>
+      <td>${c.multi?'Yes':'—'}</td>
+      <td class="num">${c.margin_pct}</td>
+      <td><button class="btn btn-ghost btn-sm" data-editcat="${c.id}">Edit</button></td></tr>`).join('') + '</tbody>';
+
+  const sel = el('filterCat');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All parameters</option>' + DATA.categories.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
+  sel.value = cur;
+}
+
+function renderParts(){
+  const f = el('filterCat').value;
+  const rows = DATA.options.filter(o=>!f || o.category_id===f);
+  el('partCount').textContent = `${rows.length} of ${DATA.options.length} parts`;
+  el('tblParts').innerHTML = `<thead><tr><th>SKU</th><th>Part</th><th>Parameter</th><th>Cost</th><th>Stock</th><th>Lead</th><th>Attributes</th><th></th></tr></thead><tbody>` +
+    rows.map(o=>`<tr style="${o.active?'':'opacity:.5'}">
+      <td class="mono">${o.id}</td>
+      <td><strong>${esc(o.name)}</strong><div class="muted small">${esc(o.specs)}</div></td>
+      <td>${esc(catLabel(o.category_id))}</td>
+      <td class="num">${o.price.toLocaleString('en-IN')}</td>
+      <td class="num">${o.stock_qty>0?o.stock_qty:'<span class="tag bad">0</span>'}</td>
+      <td class="num">${o.lead_days||'—'}</td>
+      <td class="mono small">${Object.entries(o.attrs).map(([k,v])=>`${k}=${Array.isArray(v)?v.join('|'):v}`).join('  ')}</td>
+      <td><button class="btn btn-ghost btn-sm" data-editpart="${o.id}">Edit</button></td></tr>`).join('') + '</tbody>';
+}
+el('filterCat').onchange = renderParts;
+
+const OPS = {eq:'is equal to', neq:'is not equal to', lte:'is at most', gte:'is at least', lt:'is less than', gt:'is greater than', in:'is one of', not_in:'is not one of', contains:'contains'};
+const KINDS = {attr:'attribute of', count:'number chosen in', sum:'total of attribute across', const:'the fixed value'};
+
+function ruleSentence(r){
+  if(r.expr) return `<span class="mono">${esc(r.expr)}</span>`;
+  const L = r.left_kind==='count' ? `count of ${esc(r.left_cats)}`
+          : r.left_kind==='sum' ? `Σ ${esc(r.left_attr)} over ${esc(r.left_cats)}`
+          : r.left_kind==='const' ? esc(r.left_const)
+          : `${esc(r.left_cats)}.${esc(r.left_attr)}`;
+  const scaled = (r.left_scale!==1||r.left_offset!==0) ? `(${L}${r.left_scale!==1?` × ${r.left_scale}`:''}${r.left_offset?` + ${r.left_offset}`:''})` : L;
+  const R = r.right_kind==='const' ? esc(r.right_const)
+          : r.right_kind==='count' ? `count of ${esc(r.right_cats)}`
+          : r.right_kind==='sum' ? `Σ ${esc(r.right_attr)} over ${esc(r.right_cats)}`
+          : `${esc(r.right_cats)}.${esc(r.right_attr)}`;
+  return `<span class="mono">${scaled}</span> ${OPS[r.op]||r.op} <span class="mono">${R}</span>`;
+}
+
+function renderRules(){
+  el('tblRules').innerHTML = `<thead><tr><th>Rule</th><th>Must stay true</th><th>Type</th><th>Message shown</th><th></th></tr></thead><tbody>` +
+    DATA.rules.map(r=>`<tr style="${r.enabled?'':'opacity:.45'}">
+      <td><strong>${esc(r.name)}</strong></td>
+      <td class="small">${ruleSentence(r)}</td>
+      <td>${r.severity==='block'?'<span class="tag bad">Blocks</span>':'<span class="tag warn">Warns</span>'}</td>
+      <td class="small muted">${esc(r.message)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" data-editrule="${r.id}">Edit</button>
+        <button class="btn btn-danger btn-sm" data-delrule="${r.id}">Delete</button></td></tr>`).join('') + '</tbody>';
+}
+
+function renderFields(){
+  const groups = [...new Set(DATA.fields.map(f=>f.group_name))];
+  el('tblFields').innerHTML = `<thead><tr><th>Key point</th><th>Field id</th><th>Type</th><th>Group</th><th>Guidance given to the reader</th><th></th></tr></thead><tbody>` +
+    groups.flatMap(g=>DATA.fields.filter(f=>f.group_name===g).map(f=>`<tr style="${f.active?'':'opacity:.45'}">
+      <td><strong>${esc(f.label)}</strong></td>
+      <td class="mono">${f.key}</td>
+      <td><span class="tag mute">${f.type}</span></td>
+      <td>${esc(f.group_name)}</td>
+      <td class="small muted">${esc(f.hint)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" data-editfield="${f.key}">Edit</button>
+        <button class="btn btn-danger btn-sm" data-delfield="${f.key}">Delete</button></td></tr>`)).join('') + '</tbody>';
+}
+
+function renderLeads(rows){
+  el('leadCount').textContent = `${rows.length} captured`;
+  el('tblLeads').innerHTML = `<thead><tr><th>Ref</th><th>When</th><th>Name</th><th>Company</th><th>Mobile</th><th>Units</th><th>Estimate</th><th>Configuration</th></tr></thead><tbody>` +
+    rows.map(l=>{
+      let cfg=''; try{ cfg = JSON.parse(l.config_json).lines.map(x=>`${x.name} ×${x.qty_per_unit}`).join(', '); }catch{}
+      return `<tr><td class="mono">${l.ref||''}</td><td class="mono small">${(l.created_at||'').slice(0,16)}</td>
+      <td>${esc(l.name)}</td><td>${esc(l.company)}</td><td class="mono">${esc(l.mobile)}</td>
+      <td class="num">${l.units}</td><td class="num">${Math.round(l.total).toLocaleString('en-IN')}</td>
+      <td class="small muted">${esc(cfg)}</td></tr>`;
+    }).join('') + '</tbody>';
+  if(!rows.length) el('tblLeads').innerHTML = '<tbody><tr><td class="empty">No enquiries yet.</td></tr></tbody>';
+}
+
+function renderSettings(){
+  ['company','currency','locale','tax_label','tax_rate','default_margin_pct','anthropic_model','google_form_action','google_form_fields']
+    .forEach(k=>{ const n = el('s_'+k); if(n) n.value = DATA.settings[k] ?? ''; });
+}
+el('btnSaveSettings').onclick = async ()=>{
+  const body = {};
+  ['company','currency','locale','tax_label','tax_rate','default_margin_pct','anthropic_model','google_form_action','google_form_fields']
+    .forEach(k=>{ const n = el('s_'+k); if(n) body[k]=n.value; });
+  await api('/api/admin/settings',{method:'POST',body:JSON.stringify(body)});
+  notice('Settings saved.'); load();
+};
+
+/* ---------- dialog plumbing ---------- */
+function openDialog(title, sub, html, onSave){
+  el('dlgTitle').textContent = title; el('dlgSub').textContent = sub||'';
+  el('dlgBody').innerHTML = html; saveHandler = onSave;
+  el('scrim').classList.add('on');
+}
+el('dlgCancel').onclick = ()=> el('scrim').classList.remove('on');
+el('scrim').onclick = e=>{ if(e.target===el('scrim')) el('scrim').classList.remove('on'); };
+el('dlgSave').onclick = async ()=>{
+  try { await saveHandler(); el('scrim').classList.remove('on'); await load(); notice('Saved.'); }
+  catch(e){ notice(e.message,'stop'); }
+};
+const val = id => el(id).value.trim();
+
+/* ---------- editors ---------- */
+function editCategory(c){
+  c = c || {id:'',label:'',note:'',sort:(DATA.categories.length+1)*1,required:0,max_qty:1,multi:0,margin_pct:Number(DATA.settings.default_margin_pct)||12,active:1};
+  openDialog(c.id?'Edit parameter':'New parameter','A parameter is one group the customer chooses from.', `
+    <div class="row row-2">
+      <div class="field"><label class="f">Id (no spaces)</label><input id="c_id" value="${esc(c.id)}" ${c.id?'readonly':''}></div>
+      <div class="field"><label class="f">Label</label><input id="c_label" value="${esc(c.label)}"></div>
+    </div>
+    <div class="field"><label class="f">Helper note for the customer</label><input id="c_note" value="${esc(c.note)}"></div>
+    <div class="row row-4">
+      <div class="field"><label class="f">Order</label><input id="c_sort" type="number" value="${c.sort}"></div>
+      <div class="field"><label class="f">Max quantity</label><input id="c_max" type="number" min="1" value="${c.max_qty}"></div>
+      <div class="field"><label class="f">Margin %</label><input id="c_margin" type="number" step="0.1" value="${c.margin_pct}"></div>
+      <div class="field"><label class="f">Required</label><select id="c_req"><option value="1" ${c.required?'selected':''}>Yes</option><option value="0" ${!c.required?'selected':''}>No</option></select></div>
+    </div>
+    <div class="row row-2">
+      <div class="field"><label class="f">Allow several different picks</label><select id="c_multi"><option value="0" ${!c.multi?'selected':''}>No</option><option value="1" ${c.multi?'selected':''}>Yes</option></select></div>
+      <div class="field"><label class="f">Shown to customers</label><select id="c_active"><option value="1" ${c.active?'selected':''}>Yes</option><option value="0" ${!c.active?'selected':''}>No</option></select></div>
+    </div>`,
+    ()=>api('/api/admin/category',{method:'POST',body:JSON.stringify({
+      id:val('c_id'), label:val('c_label'), note:val('c_note'), sort:Number(val('c_sort')),
+      required:val('c_req')==='1', max_qty:Number(val('c_max')), multi:val('c_multi')==='1',
+      margin_pct:Number(val('c_margin')), active:val('c_active')==='1'
+    })}));
+}
+
+function attrRow(k='',v=''){
+  return `<div class="attrgrid"><input class="ak" placeholder="attribute" value="${esc(k)}" list="attrkeys">
+    <input class="av" placeholder="value  (pipe for lists: ATX|EATX)" value="${esc(Array.isArray(v)?v.join('|'):v)}">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">×</button></div>`;
+}
+function editPart(o){
+  o = o || {id:'',category_id:DATA.categories[0]?.id,name:'',specs:'',price:0,stock_qty:0,lead_days:0,active:1,attrs:{}};
+  openDialog(o.id?'Edit part':'New part','Cost is what you pay. Customers see cost plus the parameter margin.', `
+    <datalist id="attrkeys">${DATA.attr_keys.map(k=>`<option value="${k}">`).join('')}</datalist>
+    <div class="row row-2">
+      <div class="field"><label class="f">SKU / id</label><input id="p_id" value="${esc(o.id)}" ${o.id?'readonly':''}></div>
+      <div class="field"><label class="f">Parameter</label><select id="p_cat">${DATA.categories.map(c=>`<option value="${c.id}" ${c.id===o.category_id?'selected':''}>${esc(c.label)}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label class="f">Part name</label><input id="p_name" value="${esc(o.name)}"></div>
+    <div class="field"><label class="f">Short spec line shown to the customer</label><input id="p_specs" value="${esc(o.specs)}"></div>
+    <div class="row row-4">
+      <div class="field"><label class="f">Cost</label><input id="p_price" type="number" value="${o.price}"></div>
+      <div class="field"><label class="f">Stock on hand</label><input id="p_stock" type="number" value="${o.stock_qty}"></div>
+      <div class="field"><label class="f">Lead days</label><input id="p_lead" type="number" value="${o.lead_days}"></div>
+      <div class="field"><label class="f">Active</label><select id="p_active"><option value="1" ${o.active?'selected':''}>Yes</option><option value="0" ${!o.active?'selected':''}>No</option></select></div>
+    </div>
+    <label class="f">Technical attributes — these are what the rules and the tender matcher read</label>
+    <div id="attrs">${Object.entries(o.attrs).map(([k,v])=>attrRow(k,v)).join('') || attrRow()}</div>
+    <button class="btn btn-ghost btn-sm" id="addAttr">Add attribute</button>`,
+    ()=>{
+      const attrs = {};
+      document.querySelectorAll('#attrs .attrgrid').forEach(r=>{
+        const k = r.querySelector('.ak').value.trim(); let v = r.querySelector('.av').value.trim();
+        if(!k) return;
+        if(v.includes('|')) v = v.split('|').map(s=>s.trim()).filter(Boolean);
+        else if(v!=='' && !isNaN(Number(v))) v = Number(v);
+        attrs[k]=v;
+      });
+      return api('/api/admin/option',{method:'POST',body:JSON.stringify({
+        id:val('p_id'), category_id:val('p_cat'), name:val('p_name'), specs:val('p_specs'),
+        price:Number(val('p_price')), stock_qty:Number(val('p_stock')), lead_days:Number(val('p_lead')),
+        active:val('p_active')==='1', attrs
+      })});
+    });
+  el('addAttr').onclick = ()=> el('attrs').insertAdjacentHTML('beforeend', attrRow());
+}
+
+function sideFields(p, r){
+  const cats = DATA.categories.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('');
+  const kind = r[p+'_kind']||'attr';
+  return `
+    <div class="field"><label class="f">${p==='left'?'This':'must relate to'}</label>
+      <select id="${p}_kind">${Object.entries(KINDS).map(([k,v])=>`<option value="${k}" ${kind===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="field"><label class="f">Parameter(s)</label><input id="${p}_cats" value="${esc(r[p+'_cats']||'')}" list="catids" placeholder="cpu  or  cpu,gpu,nic"></div>
+    <div class="field"><label class="f">Attribute</label><input id="${p}_attr" value="${esc(r[p+'_attr']||'')}" list="attrkeys" placeholder="socket   (pipe = fallbacks)"></div>
+    ${p==='right'?`<div class="field"><label class="f">Fixed value</label><input id="right_const" value="${esc(r.right_const||'')}" placeholder="only for 'the fixed value'"></div>`:''}`;
+}
+
+function editRule(r){
+  r = r || {name:'',severity:'block',message:'',enabled:1,left_kind:'attr',left_cats:'',left_attr:'',left_scale:1,left_offset:0,op:'eq',right_kind:'attr',right_cats:'',right_attr:'',right_const:'',expr:''};
+  openDialog(r.id?'Edit rule':'New rule','Write it as a sentence that must stay true for a valid build.', `
+    <datalist id="catids">${DATA.categories.map(c=>`<option value="${c.id}">`).join('')}</datalist>
+    <datalist id="attrkeys">${DATA.attr_keys.map(k=>`<option value="${k}">`).join('')}</datalist>
+    <div class="field"><label class="f">Rule name (for your team)</label><input id="r_name" value="${esc(r.name)}"></div>
+    <div class="sentence">
+      <div class="lead">Left side</div>
+      ${sideFields('left', r)}
+      <div class="field"><label class="f">× multiplier</label><input id="left_scale" type="number" step="0.01" value="${r.left_scale}"></div>
+      <div class="field"><label class="f">+ offset</label><input id="left_offset" type="number" value="${r.left_offset}"></div>
+    </div>
+    <div class="field" style="margin-top:13px"><label class="f">must be</label>
+      <select id="r_op">${Object.entries(OPS).map(([k,v])=>`<option value="${k}" ${r.op===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="sentence"><div class="lead">Right side</div>${sideFields('right', r)}</div>
+    <div class="row row-2" style="margin-top:13px">
+      <div class="field"><label class="f">When it fails</label><select id="r_sev">
+        <option value="block" ${r.severity==='block'?'selected':''}>Block the build</option>
+        <option value="warn" ${r.severity==='warn'?'selected':''}>Warn only</option></select></div>
+      <div class="field"><label class="f">Enabled</label><select id="r_en"><option value="1" ${r.enabled?'selected':''}>Yes</option><option value="0" ${!r.enabled?'selected':''}>No</option></select></div>
+    </div>
+    <div class="field"><label class="f">Message shown</label><input id="r_msg" value="${esc(r.message)}" placeholder="Use {left} and {right} for the actual values">
+      <div class="hint">Example: “This processor is {left}; the board is {right}.”</div></div>
+    <details><summary class="small muted" style="cursor:pointer;margin-bottom:8px">Advanced: write it as an expression instead</summary>
+      <div class="field"><input id="r_expr" class="mono" value="${esc(r.expr||'')}" placeholder="count('cpu') <= attr('board','sockets')">
+        <div class="hint">Helpers: attr(category, attribute), count(categories), sum(categories, attribute), has(category). Must evaluate to true for a valid build. Overrides the sentence above.</div></div>
+    </details>`,
+    ()=>api('/api/admin/rule',{method:'POST',body:JSON.stringify({
+      id:r.id, name:val('r_name'), severity:val('r_sev'), message:val('r_msg'), enabled:val('r_en')==='1',
+      left_kind:val('left_kind'), left_cats:val('left_cats'), left_attr:val('left_attr'),
+      left_scale:Number(val('left_scale'))||1, left_offset:Number(val('left_offset'))||0,
+      op:val('r_op'), right_kind:val('right_kind'), right_cats:val('right_cats'),
+      right_attr:val('right_attr'), right_const:val('right_const'), expr:val('r_expr')
+    })}));
+}
+
+function editField(f){
+  f = f || {key:'',label:'',hint:'',type:'text',group_name:'Commercial',sort:DATA.fields.length,active:1};
+  openDialog(f.key?'Edit key point':'New key point','This is added to the extraction schema for every tender.', `
+    <div class="row row-2">
+      <div class="field"><label class="f">Field id</label><input id="f_key" value="${esc(f.key)}" ${f.key?'readonly':''} placeholder="emd_amount"></div>
+      <div class="field"><label class="f">Label</label><input id="f_label" value="${esc(f.label)}"></div>
+    </div>
+    <div class="field"><label class="f">Guidance for the reader</label><input id="f_hint" value="${esc(f.hint)}" placeholder="Where it usually appears, what counts, what to ignore"></div>
+    <div class="row row-3">
+      <div class="field"><label class="f">Type</label><select id="f_type">${['text','number','date','money','list'].map(t=>`<option ${f.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label class="f">Group</label><input id="f_group" value="${esc(f.group_name)}"></div>
+      <div class="field"><label class="f">Order</label><input id="f_sort" type="number" value="${f.sort}"></div>
+    </div>`,
+    ()=>api('/api/admin/field',{method:'POST',body:JSON.stringify({
+      key:val('f_key'), label:val('f_label'), hint:val('f_hint'), type:val('f_type'),
+      group_name:val('f_group'), sort:Number(val('f_sort'))
+    })}));
+}
+
+/* ---------- table actions ---------- */
+document.addEventListener('click', async e=>{
+  const t = e.target;
+  if(t.dataset.editcat) editCategory(DATA.categories.find(c=>c.id===t.dataset.editcat));
+  if(t.dataset.editpart) editPart(DATA.options.find(o=>o.id===t.dataset.editpart));
+  if(t.dataset.editrule) editRule(DATA.rules.find(r=>String(r.id)===t.dataset.editrule));
+  if(t.dataset.editfield) editField(DATA.fields.find(f=>f.key===t.dataset.editfield));
+  if(t.dataset.delrule && confirm('Delete this rule?')){ await api('/api/admin/rule/'+t.dataset.delrule,{method:'DELETE'}); load(); }
+  if(t.dataset.delfield && confirm('Delete this key point?')){ await api('/api/admin/field/'+t.dataset.delfield,{method:'DELETE'}); load(); }
+});
+el('btnNewCat').onclick = ()=>editCategory();
+el('btnNewPart').onclick = ()=>editPart();
+el('btnNewRule').onclick = ()=>editRule();
+el('btnNewField').onclick = ()=>editField();
+
+/* ---------- excel ---------- */
+el('btnExport').onclick = ()=> location.href = '/api/admin/export.xlsx?token=' + encodeURIComponent(TOKEN);
+el('btnImport').onclick = ()=> el('fileIn').click();
+el('fileIn').onchange = async ()=>{
+  const fd = new FormData(); fd.append('file', el('fileIn').files[0]);
+  try{
+    const r = await fetch('/api/admin/import',{method:'POST',headers:{'x-admin-token':TOKEN},body:fd});
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error);
+    notice(`Imported ${data.options} parts, ${data.categories} parameters, ${data.rules} rules.` +
+      (data.errors.length?` ${data.errors.length} row(s) skipped: ${data.errors[0]}`:''), data.errors.length?'warn':'ok');
+    load();
+  }catch(err){ notice(err.message,'stop'); }
+  el('fileIn').value='';
+};
+
+/* ---------- start ---------- */
+(async ()=>{
+  if(TOKEN){ try{ await load(); el('app').style.display='block'; return; }catch{} }
+  el('gate').style.display='block';
+})();
+</script>
+</body>
+</html>

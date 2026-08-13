@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build &amp; Quote</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+.layout{display:grid;grid-template-columns:1fr 372px;gap:26px;align-items:start}
+.intro{margin-bottom:24px;max-width:62ch}
+.intro h1{font-size:29px;font-weight:700;line-height:1.15}
+.intro p{color:var(--ink-2);margin:9px 0 0}
+.cat-head{display:flex;align-items:flex-start;gap:14px;padding:15px 18px;border-bottom:1px solid var(--rule-soft)}
+.cat-index{font-family:var(--f-mono);font-size:11px;font-weight:700;color:var(--ink-3);padding-top:3px;min-width:24px}
+.cat-title{font-size:15.5px;font-weight:600}
+.cat-note{color:var(--ink-3);font-size:12.5px;margin-top:1px}
+.cat-state{margin-left:auto;font-family:var(--f-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;padding-top:4px;white-space:nowrap}
+.cat-state.done{color:var(--signal)} .cat-state.todo{color:var(--alert)} .cat-state.opt{color:var(--ink-3)}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(266px,1fr));gap:10px;padding:14px 18px 18px}
+.opt{position:relative;text-align:left;background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:12px 13px 11px;cursor:pointer;display:flex;flex-direction:column;gap:7px;transition:border-color .13s,background .13s,box-shadow .13s}
+.opt:hover:not(.is-blocked){border-color:var(--ink-3)}
+.opt:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.opt.is-on{border-color:var(--signal);background:var(--signal-tint);box-shadow:inset 3px 0 0 var(--signal)}
+.opt.is-blocked{cursor:not-allowed;background:#F7F8F9;border-style:dashed;color:var(--ink-3)}
+.opt.is-blocked .opt-name,.opt.is-blocked .opt-price{color:var(--ink-3)}
+.opt-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.opt-name{font-weight:600;font-size:14px;line-height:1.3}
+.opt-price{font-family:var(--f-mono);font-size:13px;white-space:nowrap}
+.opt-specs{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);line-height:1.45}
+.opt-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.blocked-why{font-size:11.5px;color:var(--alert);line-height:1.4}
+.qty{display:flex;align-items:center;margin-left:auto;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:var(--surface)}
+.qty button{width:25px;height:23px;border:0;background:transparent;color:var(--ink-2);cursor:pointer;line-height:1}
+.qty button:hover{background:var(--paper)}
+.qty span{font-family:var(--f-mono);font-size:12px;min-width:26px;text-align:center}
+.sheet{position:sticky;top:74px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;box-shadow:var(--shadow)}
+.sheet-head{padding:13px 16px;border-bottom:1px solid var(--rule);display:flex;align-items:baseline;justify-content:space-between}
+.sheet-head h2{font-size:14px;font-weight:600}
+.lines{padding:6px 16px;max-height:36vh;overflow:auto}
+.line{display:grid;grid-template-columns:1fr auto;gap:3px 12px;padding:9px 0;border-bottom:1px dashed var(--rule-soft)}
+.line:last-child{border-bottom:0}
+.line-cat{grid-column:1/-1;font-family:var(--f-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3)}
+.line-name{font-size:13px;line-height:1.35}
+.line-amt{font-family:var(--f-mono);font-size:12.5px;text-align:right;white-space:nowrap}
+.readouts{padding:10px 16px;border-top:1px solid var(--rule);display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.readout{background:var(--paper);border-radius:4px;padding:8px 10px}
+.readout .k{font-family:var(--f-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3)}
+.readout .v{font-family:var(--f-mono);font-size:13px;font-weight:500}
+.totals{padding:12px 16px;border-top:1px solid var(--rule)}
+.trow{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-size:13px;color:var(--ink-2)}
+.trow .amt{font-family:var(--f-mono)}
+.trow.grand{margin-top:8px;padding-top:10px;border-top:1px solid var(--ink);color:var(--ink)}
+.trow.grand .k{font-family:var(--f-display);font-weight:600;font-size:14px}
+.trow.grand .amt{font-size:20px;font-weight:700}
+.flags{padding:0 16px 10px}
+.sheet-actions{padding:13px 16px;border-top:1px solid var(--rule);display:flex;flex-direction:column;gap:8px}
+.done{text-align:center;padding:40px 30px}
+.done .mark{width:44px;height:44px;border-radius:50%;background:var(--signal-tint);color:var(--signal);display:flex;align-items:center;justify-content:center;font-size:21px;margin:0 auto 14px}
+.refline{font-family:var(--f-mono);font-size:12px;background:var(--paper);padding:8px 12px;border-radius:4px;display:inline-block;margin-top:14px}
+@media (max-width:1080px){.layout{grid-template-columns:1fr}.sheet{position:static}}
+@media print{.masthead,.sheet-actions,.opts,.intro{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="brand"><strong id="brandName">Loading…</strong><span>Configure &amp; Quote</span></div>
+    <div class="spacer"></div>
+    <div class="inline">
+      <span class="mono muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.09em">Estimate</span>
+      <strong class="mono" id="topTotal" style="font-size:18px">—</strong>
+    </div>
+  </div>
+</header>
+
+<main class="wrap layout">
+  <div>
+    <div class="intro">
+      <h1>Build your system, see the price as you go.</h1>
+      <p>Start with the chassis — everything after it filters down to parts that physically fit. Anything incompatible is greyed out with the reason, so you can't build something we can't ship.</p>
+    </div>
+    <div id="cats"><div class="panel"><div class="empty">Loading catalog…</div></div></div>
+  </div>
+
+  <aside>
+    <div class="sheet">
+      <div class="sheet-head"><h2>Build sheet</h2><span class="mono muted" id="refCode" style="font-size:10.5px"></span></div>
+      <div class="lines" id="lines"></div>
+      <div class="readouts">
+        <div class="readout"><div class="k">Est. draw</div><div class="v" id="rdPower">—</div></div>
+        <div class="readout"><div class="k">Availability</div><div class="v" id="rdLead">—</div></div>
+      </div>
+      <div class="totals">
+        <div class="trow"><span>Subtotal</span><span class="amt" id="tSub">—</span></div>
+        <div class="trow"><span id="taxLabel">GST</span><span class="amt" id="tTax">—</span></div>
+        <div class="trow grand"><span class="k">Estimate</span><span class="amt" id="tGrand">—</span></div>
+      </div>
+      <div class="flags" id="flags"></div>
+      <div class="sheet-actions">
+        <button class="btn btn-primary" id="btnEnquire" disabled>Send enquiry</button>
+        <button class="btn btn-ghost" id="btnReset">Start over</button>
+      </div>
+      <p class="hint" style="padding:0 16px 14px">Indicative pricing, excludes freight and installation. Stock and rates are confirmed on the formal quote.</p>
+    </div>
+  </aside>
+</main>
+
+<div class="scrim" id="scrim">
+  <div class="dialog" role="dialog" aria-modal="true">
+    <div id="dlgForm">
+      <div class="dialog-head">
+        <h2>Send this configuration</h2>
+        <p>We'll confirm stock and send a formal quote, usually within one business day.</p>
+      </div>
+      <div class="dialog-body">
+        <div class="flag stop" id="formError" style="display:none"></div>
+        <div class="row row-2">
+          <div class="field"><label class="f" for="fName">Your name *</label><input id="fName" autocomplete="name"></div>
+          <div class="field"><label class="f" for="fCompany">Company *</label><input id="fCompany" autocomplete="organization"></div>
+          <div class="field"><label class="f" for="fMobile">Mobile *</label><input id="fMobile" type="tel" autocomplete="tel" placeholder="+91 "></div>
+          <div class="field"><label class="f" for="fEmail">Email</label><input id="fEmail" type="email" autocomplete="email"></div>
+          <div class="field"><label class="f" for="fCity">City</label><input id="fCity"></div>
+          <div class="field"><label class="f" for="fUnits">Units required</label><input id="fUnits" type="number" min="1" value="1"></div>
+        </div>
+        <div class="field"><label class="f" for="fNotes">Anything we should know</label><textarea id="fNotes" placeholder="Timeline, deployment site, existing rack, tender reference…"></textarea></div>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn btn-ghost" id="btnCancel">Cancel</button>
+        <button class="btn btn-primary" id="btnSubmit">Send enquiry</button>
+      </div>
+    </div>
+    <div id="dlgDone" class="done" style="display:none">
+      <div class="mark">✓</div>
+      <h2>Enquiry received</h2>
+      <p class="muted">Your configuration is with our team. Keep this reference handy if you call us.</p>
+      <div class="refline" id="doneRef"></div>
+      <div class="dialog-foot" style="justify-content:center;border:0;padding-top:20px">
+        <button class="btn btn-ghost" onclick="window.print()">Print / save PDF</button>
+        <button class="btn btn-primary" id="btnClose">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/rules.browser.js"></script>
+<script>
+const el = id => document.getElementById(id);
+let CAT = null, OPTMAP = {}, build = [];
+const REF = 'CFG-' + Date.now().toString(36).toUpperCase().slice(-5);
+
+const money = n => CAT.settings.currency + Math.round(n).toLocaleString(CAT.settings.locale);
+
+async function boot(){
+  CAT = await (await fetch('/api/catalog')).json();
+  el('brandName').textContent = CAT.settings.company;
+  document.title = 'Build & Quote — ' + CAT.settings.company;
+  el('taxLabel').textContent = CAT.settings.tax_label;
+  el('refCode').textContent = REF;
+  CAT.categories.forEach(c => c.options.forEach(o => OPTMAP[o.id] = {...o, category_id: c.id}));
+  render();
+}
+
+const chosen = catId => build.filter(b => b.category_id === catId);
+
+function pick(cat, opt){
+  const has = build.find(b => b.option_id === opt.id);
+  if (cat.multi) {
+    build = has ? build.filter(b => b.option_id !== opt.id) : [...build, {category_id:cat.id, option_id:opt.id, qty:1}];
+  } else {
+    build = build.filter(b => b.category_id !== cat.id);
+    if (!has) build.push({category_id:cat.id, option_id:opt.id, qty:1});
+  }
+  prune();
+  render();
+}
+
+function bump(cat, opt, d){
+  const row = build.find(b => b.option_id === opt.id);
+  if(!row) return;
+  const next = row.qty + d;
+  if(next < 1){ build = build.filter(b => b.option_id !== opt.id); render(); return; }
+  if(next > cat.max_qty) return;
+  const before = new Set(violations().filter(v=>v.severity==='block').map(v=>v.rule_id));
+  const trial = build.map(b => b.option_id===opt.id ? {...b, qty:next} : b);
+  const after = RuleEngine.evaluate(trial, OPTMAP, CAT.rules).filter(v=>v.severity==='block' && !before.has(v.rule_id));
+  if(after.length) return;
+  row.qty = next;
+  render();
+}
+
+/* If an upstream change invalidates later choices, drop them from the bottom up
+   rather than leaving the customer stuck on an impossible build. */
+function prune(){
+  for(let i=0;i<6;i++){
+    const bad = violations().filter(v=>v.severity==='block');
+    if(!bad.length) return;
+    const order = [...CAT.categories].map(c=>c.id).reverse();
+    const drop = order.find(id => build.some(b=>b.category_id===id));
+    if(!drop) return;
+    build = build.filter(b => b.category_id !== drop);
+  }
+}
+const violations = () => RuleEngine.evaluate(build, OPTMAP, CAT.rules);
+
+function availability(o, need){
+  if (o.stock_qty >= need) return {cls:'ok', text:'In stock'};
+  if (o.stock_qty > 0) return {cls:'warn', text:`Only ${o.stock_qty} on hand`};
+  return {cls:'mute', text: o.lead_days ? `To order · ${o.lead_days} days` : 'To order'};
+}
+
+function render(){
+  el('cats').innerHTML = CAT.categories.map((cat,i)=>{
+    const mine = chosen(cat.id);
+    const state = mine.length ? '<span class="cat-state done">Selected</span>'
+      : cat.required ? '<span class="cat-state todo">Required</span>'
+      : '<span class="cat-state opt">Optional</span>';
+    const opts = cat.options.map(opt=>{
+      const row = mine.find(b=>b.option_id===opt.id);
+      const on = !!row;
+      const why = on ? null : RuleEngine.blockReason(build, OPTMAP, CAT.rules, cat, opt);
+      const av = availability(opt, row ? row.qty : 1);
+      const stepper = (on && cat.max_qty>1 && !cat.multi)
+        ? `<span class="qty"><button data-act="dec" data-cat="${cat.id}" data-opt="${opt.id}" aria-label="Fewer">−</button><span>${row.qty}</span><button data-act="inc" data-cat="${cat.id}" data-opt="${opt.id}" aria-label="More">+</button></span>` : '';
+      return `<div class="opt ${on?'is-on':''} ${why?'is-blocked':''}" tabindex="${why?-1:0}" role="button" aria-pressed="${on}"
+        data-act="pick" data-cat="${cat.id}" data-opt="${opt.id}">
+        <div class="opt-top"><span class="opt-name">${opt.name}</span><span class="opt-price">${money(opt.price)}</span></div>
+        <div class="opt-specs">${opt.specs||''}</div>
+        <div class="opt-foot"><span class="tag ${av.cls}">${av.text}</span>${stepper}</div>
+        ${why?`<div class="blocked-why">${why}</div>`:''}
+      </div>`;
+    }).join('');
+    return `<section class="panel">
+      <div class="cat-head"><span class="cat-index">${String(i+1).padStart(2,'0')}</span>
+        <div><div class="cat-title">${cat.label}</div><div class="cat-note">${cat.note||''}</div></div>${state}</div>
+      <div class="opts">${opts}</div></section>`;
+  }).join('');
+  renderSheet();
+}
+
+function renderSheet(){
+  const rows = build.map(b=>({b, o:OPTMAP[b.option_id], cat:CAT.categories.find(c=>c.id===b.category_id)})).filter(r=>r.o);
+  el('lines').innerHTML = rows.length ? rows.map(r=>`
+    <div class="line"><div class="line-cat">${r.cat.label}</div>
+      <div class="line-name">${r.o.name}${r.b.qty>1?` <span class="mono muted">× ${r.b.qty}</span>`:''}</div>
+      <div class="line-amt">${money(r.o.price*r.b.qty)}</div></div>`).join('')
+    : '<div class="empty">Nothing selected yet. Start with a chassis.</div>';
+
+  const sub = rows.reduce((s,r)=>s+r.o.price*r.b.qty,0);
+  const tax = Math.round(sub*CAT.settings.tax_rate);
+  el('tSub').textContent = rows.length? money(sub):'—';
+  el('tTax').textContent = rows.length? money(tax):'—';
+  el('tGrand').textContent = rows.length? money(sub+tax):'—';
+  el('topTotal').textContent = rows.length? money(sub+tax):'—';
+
+  const ctx = RuleEngine.makeCtx(build, OPTMAP);
+  const watt = Math.round(ctx.sum(CAT.categories.map(c=>c.id).join(','), 'tdp|watt') + 110);
+  el('rdPower').textContent = rows.length ? watt+' W' : '—';
+  const worst = rows.reduce((m,r)=> r.o.stock_qty >= r.b.qty ? m : Math.max(m, r.o.lead_days||14), 0);
+  el('rdLead').textContent = !rows.length ? '—' : (worst ? worst+' days' : 'Ex-stock');
+
+  const v = violations();
+  const stops = v.filter(x=>x.severity==='block'), warns = v.filter(x=>x.severity==='warn');
+  const missing = CAT.categories.filter(c=>c.required && !chosen(c.id).length).map(c=>c.label);
+  el('flags').innerHTML = [
+    ...stops.map(f=>`<div class="flag stop">${f.message}</div>`),
+    ...warns.map(f=>`<div class="flag warn">${f.message}</div>`),
+    missing.length?`<div class="flag warn">Still to choose: ${missing.join(', ')}.</div>`:''
+  ].filter(Boolean).join('');
+  el('btnEnquire').disabled = stops.length>0 || missing.length>0 || !rows.length;
+}
+
+document.addEventListener('click', e=>{
+  const q = e.target.closest('[data-act]'); if(!q) return;
+  const cat = CAT.categories.find(c=>c.id===q.dataset.cat);
+  const opt = cat && cat.options.find(o=>o.id===q.dataset.opt);
+  if(!cat||!opt) return;
+  if(q.dataset.act==='inc'||q.dataset.act==='dec'){ e.stopPropagation(); bump(cat,opt,q.dataset.act==='inc'?1:-1); return; }
+  if(q.classList.contains('is-blocked')) return;
+  pick(cat,opt);
+});
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const q = e.target.closest('[data-act="pick"]'); if(!q||q.classList.contains('is-blocked')) return;
+  e.preventDefault(); q.click();
+});
+
+el('btnEnquire').onclick = ()=> el('scrim').classList.add('on');
+el('btnCancel').onclick  = ()=> el('scrim').classList.remove('on');
+el('btnClose').onclick   = ()=> el('scrim').classList.remove('on');
+el('btnReset').onclick   = ()=>{ build=[]; render(); };
+el('scrim').onclick = e=>{ if(e.target===el('scrim')) el('scrim').classList.remove('on'); };
+
+el('btnSubmit').onclick = async ()=>{
+  const err = el('formError');
+  const payload = {
+    name: el('fName').value.trim(), company: el('fCompany').value.trim(),
+    mobile: el('fMobile').value.trim(), email: el('fEmail').value.trim(),
+    city: el('fCity').value.trim(), units: Number(el('fUnits').value)||1,
+    notes: el('fNotes').value.trim(), build
+  };
+  const show = m => { err.textContent = m; err.style.display='block'; };
+  if(!payload.name || !payload.company || !payload.mobile) return show('Name, company and mobile are needed so we can reach you.');
+  err.style.display='none';
+  el('btnSubmit').disabled = true;
+  try{
+    const res = await fetch('/api/leads', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload)});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||'Could not send the enquiry.');
+    el('dlgForm').style.display='none';
+    el('dlgDone').style.display='block';
+    el('doneRef').textContent = 'Reference ' + data.ref;
+  }catch(e){ show(e.message); }
+  finally{ el('btnSubmit').disabled = false; }
+};
+
+boot();
+</script>
+</body>
+</html>
