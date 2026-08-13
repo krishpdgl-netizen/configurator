@@ -241,8 +241,10 @@ function itemHtml(it, i, cats){
       <div><h3>${esc(it.name)}</h3>
         <div class="muted small">${it.quantity} unit${it.quantity>1?'s':''}${it.page?` · specified on p.${it.page}`:''}${it.overridden?' · manually adjusted':''}</div></div>
       <div class="spacer"></div>
-      <div class="stat"><div class="k">Per unit</div><div class="v">${inr(q.subtotal/(it.quantity||1))}</div></div>
-      <div class="stat"><div class="k">Line total</div><div class="v">${inr(q.subtotal)}</div></div>
+      ${it.outsideCatalog
+        ? '<span class="tag bad">Not in your catalog</span>'
+        : `<div class="stat"><div class="k">Per unit</div><div class="v">${inr(q.subtotal/(it.quantity||1))}</div></div>
+           <div class="stat"><div class="k">Line total</div><div class="v">${inr(q.subtotal)}</div></div>`}
     </div>
     <div class="panel-body">
       ${it.unsolvable ? '<div class="flag stop">These requirements cannot all be met at once with your current catalog — the parts below satisfy the specification individually but do not go together. That conflict is worth raising at the pre-bid meeting.</div>' : ''}
@@ -253,9 +255,11 @@ function itemHtml(it, i, cats){
         (it.unmapped && it.unmapped.length) ? {tag:'Off-catalog', text:`Outside the catalog: ${it.unmapped.join(' · ')}`} : null,
         (it.assumed && it.assumed.length) ? {kind:'ok', tag:'Added by us', text:`Not specified by the tender: ${it.assumed.map(a=>a.name).join(', ')}. Confirm these are what you intend to bid.`} : null
       ])}
-      ${reqTable(it.requirements, i)}
+      ${it.outsideCatalog
+        ? `<div class="flag stop">Nothing in your catalog matches this line, so it has not been priced and is excluded from the total. Quote it separately, or add the parts to the catalog and run this tender again.</div>`
+        : reqTable(it.requirements, i)}
     </div>
-    <div class="bar">
+    <div class="bar" style="${it.outsideCatalog?'display:none':''}">
       <div class="stat"><div class="k">Stock</div><div class="v">${q.shortfalls.length?`<span style="color:var(--stop)">${q.shortfalls.length} short</span>`:'Covered'}</div></div>
       <div class="stat"><div class="k">Longest lead</div><div class="v">${q.lead_days||0} d</div></div>
       <div class="stat"><div class="k">Margin</div><div class="v">${q.gross_margin_pct}%</div></div>
