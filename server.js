@@ -27,28 +27,44 @@ app.get('/rules.browser.js', async (req, res) => {
     `(function(){const module={exports:{}};\n${ruleSrc}\nwindow.RuleEngine=module.exports;})();`
   );
 });
-/* ---- Keep the internal pages off the public internet.
+/* ---- Access control for the internal pages.
 
-   cloudflared runs on this machine and connects to localhost, so every
-   tunnelled request arrives with a loopback address — an IP check alone
-   would let the whole internet through. Cloudflare stamps its own
-   headers on proxied traffic, so we treat the presence of those as
-   proof the request came from outside.
+   The app is on a public URL now, so the old "block anything that looks
+   proxied" check is gone — behind Render's proxy every request carries
+   x-forwarded-for, so that check blocked everyone.
 
-   Set ALLOW_REMOTE_ADMIN=1 in .env to disable this (don't, unless you
-   have put real authentication in front of it). ---- */
-function isTunnelled(req) {
-  return !!(req.get('cf-connecting-ip') || req.get('cf-ray') ||
-            req.get('x-forwarded-for'));
+   What protects /admin.html and /tender.html is the shared token. A single
+   shared secret with unlimited guesses is weak, so failed attempts are
+   counted per client IP and the source is locked out for a while after a
+   handful of misses. That turns an overnight brute force into something
+   that would take years.
+
+   When you outgrow one shared token, the upgrade is per-user logins —
+   the change is contained to the admin() function below. ---- */
+
+app.set('trust proxy', 1);   // Render terminates TLS upstream
+
+const MAX_FAILS = Number(process.env.ADMIN_MAX_FAILS || 8);
+const LOCKOUT_MS = Number(process.env.ADMIN_LOCKOUT_MS || 15 * 60 * 1000);
+const fails = new Map();     // ip -> { n, until }
+
+function clientIp(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+         req.socket.remoteAddress || 'unknown';
 }
-function internalOnly(req, res, next) {
-  if (process.env.ALLOW_REMOTE_ADMIN === '1') return next();
-  if (isTunnelled(req)) {
-    return res.status(404).type('text/plain').send('Not found');
-  }
-  next();
+
+/* Compare in constant time so response timing can't leak the token. */
+function tokenMatches(given) {
+  if (typeof given !== 'string' || given.length !== ADMIN_TOKEN.length) return false;
+  let diff = 0;
+  for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ ADMIN_TOKEN.charCodeAt(i);
+  return diff === 0;
 }
-app.use(['/admin.html', '/tender.html'], internalOnly);
+
+setInterval(() => {                      // keep the map from growing forever
+  const now = Date.now();
+  for (const [ip, r] of fails) if (r.until && r.until < now) fails.delete(ip);
+}, 10 * 60 * 1000).unref();
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -59,12 +75,24 @@ const upload = multer({
 
 /* =========================== ADMIN AUTH =========================== */
 function admin(req, res, next) {
-  if (process.env.ALLOW_REMOTE_ADMIN !== '1' && isTunnelled(req)) {
-    return res.status(404).json({ error: 'Not found' });
+  const ip = clientIp(req);
+  const rec = fails.get(ip);
+  if (rec && rec.until && rec.until > Date.now()) {
+    const mins = Math.ceil((rec.until - Date.now()) / 60000);
+    return res.status(429).json({ error: `Too many failed attempts. Try again in ${mins} minute(s).` });
   }
+
   const token = req.get('x-admin-token') || req.query.token ||
     (req.headers.cookie || '').split(/;\s*/).find(c => c.startsWith('admtok='))?.slice(7);
-  if (token !== ADMIN_TOKEN) return res.status(401).json({ error: 'Not authorised' });
+
+  if (!tokenMatches(token)) {
+    const n = (rec?.n || 0) + 1;
+    fails.set(ip, { n, until: n >= MAX_FAILS ? Date.now() + LOCKOUT_MS : 0 });
+    if (n >= MAX_FAILS) console.warn(`[auth] locked out ${ip} after ${n} failed attempts`);
+    return res.status(401).json({ error: 'Not authorised' });
+  }
+
+  fails.delete(ip);            // clean slate on success
   next();
 }
 
