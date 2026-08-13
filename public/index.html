@@ -73,6 +73,14 @@
   </div>
 </header>
 
+<!-- Category ribbon. Jumps to a section and doubles as a progress read:
+     green dot = chosen, amber = still required, grey = optional. -->
+<nav class="ribbon" aria-label="Categories">
+  <div class="ribbon-in" id="ribbon">
+    <a class="rib-staff" href="/admin.html" title="Internal use">Staff</a>
+  </div>
+</nav>
+
 <main class="wrap layout">
   <div>
     <div class="intro">
@@ -158,6 +166,7 @@ async function boot(){
   el('refCode').textContent = REF;
   CAT.categories.forEach(c => c.options.forEach(o => OPTMAP[o.id] = {...o, category_id: c.id}));
   render();
+  startSpy();
 }
 
 const chosen = catId => build.filter(b => b.category_id === catId);
@@ -229,12 +238,52 @@ function render(){
         ${why?`<div class="blocked-why">${why}</div>`:''}
       </div>`;
     }).join('');
-    return `<section class="panel">
+    return `<section class="panel" id="cat-${cat.id}">
       <div class="cat-head"><span class="cat-index">${String(i+1).padStart(2,'0')}</span>
         <div><div class="cat-title">${cat.label}</div><div class="cat-note">${cat.note||''}</div></div>${state}</div>
       <div class="opts">${opts}</div></section>`;
   }).join('');
+  renderRibbon();
   renderSheet();
+}
+
+function renderRibbon(){
+  const rib = el('ribbon');
+  const staff = rib.querySelector('.rib-staff');
+  const buttons = CAT.categories.map(cat=>{
+    const picked = chosen(cat.id).length > 0;
+    const cls = picked ? 'is-done' : (cat.required ? 'is-todo' : '');
+    return `<button class="rib ${cls}" data-jump="cat-${cat.id}">
+      <span class="dot"></span>${cat.label}
+    </button>`;
+  }).join('');
+  rib.innerHTML = buttons;
+  rib.appendChild(staff);
+}
+
+/* Jump to a category. Uses scroll-margin-top in CSS so the sticky
+   header never covers the heading it just jumped to. */
+document.addEventListener('click', e=>{
+  const b = e.target.closest('[data-jump]');
+  if(!b) return;
+  const target = document.getElementById(b.dataset.jump);
+  if(!target) return;
+  target.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion:reduce)').matches ? 'auto' : 'smooth', block:'start'});
+});
+
+/* Mark whichever category is currently in view. */
+let spy;
+function startSpy(){
+  if(spy) spy.disconnect();
+  spy = new IntersectionObserver(entries=>{
+    entries.forEach(en=>{
+      if(!en.isIntersecting) return;
+      document.querySelectorAll('.rib').forEach(r=>r.classList.remove('is-active'));
+      const btn = document.querySelector(`[data-jump="${en.target.id}"]`);
+      if(btn) btn.classList.add('is-active');
+    });
+  }, {rootMargin:'-120px 0px -65% 0px'});
+  document.querySelectorAll('section.panel[id^="cat-"]').forEach(sec=>spy.observe(sec));
 }
 
 function renderSheet(){
@@ -320,7 +369,6 @@ boot();
      or not this link exists, so the token is what actually protects it. -->
 <footer class="siteFoot">
   <span class="muted small" id="footCo"></span>
-  <a href="/admin.html" class="staffLink" title="Internal use">Staff</a>
 </footer>
 <style>
   .siteFoot{
