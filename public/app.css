@@ -94,3 +94,108 @@ td.num{text-align:right;font-family:var(--f-mono)}
   .wrap{padding:18px 14px 70px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ============================================================
+   ADVISORY DISCLOSURE
+   A tender throws off dozens of cautions. Stacked, they read as
+   noise and the one that matters gets lost. Blocking issues stay
+   in the open; everything advisory folds into one summary line
+   that states the count, so the page stays scannable and nothing
+   is actually hidden.
+   ============================================================ */
+.advisories{border:1px solid var(--rule-soft);border-radius:5px;background:var(--alert-tint);margin:10px 0}
+.advisories[open]{background:var(--surface)}
+.advisories>summary{
+  list-style:none;cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;
+  font-size:13px;color:var(--alert);font-weight:600;border-radius:4px;user-select:none;
+}
+.advisories>summary::-webkit-details-marker{display:none}
+.advisories>summary:hover{background:var(--alert-tint)}
+.advisories>summary:focus-visible{outline:2px solid var(--alert);outline-offset:2px}
+.advisories .chev{
+  font-family:var(--f-mono);font-size:10px;color:var(--alert);
+  transition:transform .16s ease;display:inline-block;
+}
+.advisories[open] .chev{transform:rotate(90deg)}
+.advisories .adv-count{
+  font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--alert);color:#fff;border-radius:3px;padding:2px 6px;
+}
+.advisories .adv-hint{margin-left:auto;font-weight:400;color:var(--ink-3);font-size:12px}
+.adv-list{padding:2px 14px 12px;display:grid;gap:6px}
+.adv-item{
+  display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;
+  font-size:13px;color:var(--ink-2);padding:7px 10px;border-radius:4px;background:var(--paper);
+}
+.adv-item .badge{
+  font-family:var(--f-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 5px;border-radius:3px;background:var(--alert-tint);color:var(--alert);white-space:nowrap;margin-top:1px;
+}
+.adv-item.is-ok .badge{background:var(--signal-tint);color:var(--signal)}
+
+/* ============================================================
+   REQUIREMENT TABLE
+   Requirements were stacked cards; as a table the eye can run
+   down one column and compare, which is what reviewing a spec
+   actually is.
+   ============================================================ */
+.reqtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.reqtable thead th{
+  text-align:left;font-family:var(--f-mono);font-size:10px;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--ink-3);font-weight:500;
+  padding:7px 10px;border-bottom:1px solid var(--rule);white-space:nowrap;
+}
+.reqtable td{padding:9px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.reqtable tbody tr:last-child td{border-bottom:none}
+.reqtable tbody tr:hover{background:var(--paper)}
+.reqtable tr.is-nomatch{background:var(--stop-tint)}
+.reqtable tr.is-nomatch:hover{background:var(--stop-tint)}
+.reqtable .r-spec{color:var(--ink);line-height:1.45}
+.reqtable .r-page{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);white-space:nowrap}
+.reqtable .r-why{color:var(--alert);font-size:12px;margin-top:3px}
+.reqtable select{width:100%;max-width:280px}
+.reqtable .pill{margin:2px 4px 0 0}
+
+/* ============================================================
+   CATEGORY RIBBON (configurator)
+   A jump bar under the masthead. Marks what is chosen and what
+   is still required, so the ribbon doubles as a progress read.
+   ============================================================ */
+.ribbon{
+  position:sticky;top:57px;z-index:30;background:var(--surface);
+  border-bottom:1px solid var(--rule);box-shadow:0 1px 0 rgba(15,23,32,.02);
+}
+.ribbon-in{
+  max-width:1340px;margin:0 auto;padding:0 24px;
+  display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:thin;
+}
+.ribbon-in::-webkit-scrollbar{height:3px}
+.ribbon-in::-webkit-scrollbar-thumb{background:var(--rule);border-radius:2px}
+.rib{
+  appearance:none;background:none;border:0;cursor:pointer;white-space:nowrap;
+  font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-2);padding:12px 11px 10px;border-bottom:2px solid transparent;
+  display:inline-flex;align-items:center;gap:7px;transition:color .13s,border-color .13s;
+}
+.rib:hover{color:var(--ink)}
+.rib.is-active{color:var(--ink);border-bottom-color:var(--ink)}
+.rib .dot{width:6px;height:6px;border-radius:50%;background:var(--rule);flex:none}
+.rib.is-done .dot{background:var(--signal)}
+.rib.is-todo .dot{background:var(--alert)}
+.rib-staff{
+  margin-left:auto;padding-left:18px;font-family:var(--f-mono);font-size:11px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);text-decoration:none;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+}
+.rib-staff:hover{color:var(--ink)}
+.rib-staff::before{content:'';width:1px;height:14px;background:var(--rule);margin-right:12px}
+section.panel[id^="cat-"]{scroll-margin-top:112px}
+
+@media (max-width:720px){
+  .ribbon{top:auto;position:static}
+  .rib-staff::before{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .advisories .chev{transition:none}
+  html{scroll-behavior:auto}
+}
